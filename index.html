@@ -1397,22 +1397,51 @@ async function renderAdminManagerDetail() {
   }).join('');
 }
 
-function downloadCSV() {
+async function downloadCSV() {
   const month = document.getElementById('settlement-month').value;
   const [yr, mo] = month.split('-');
   const lastDay = new Date(Number(yr), Number(mo), 0).getDate();
-  const mon = Number(mo);
-  const dateRange = `${yr.slice(2)}/${mon}/1~${mon}/${lastDay}`;
-  const rows = [
-    [`기간: ${dateRange}`],
-    ['매니저명','배정수강생','콜건수','콜분수합계'],
-    ...ADMINS.map(m => [m.name, m.students, m.calls, m.minutes])
-  ];
-  const blob = new Blob(['\uFEFF'+rows.map(r=>r.join(',')).join('\n')], {type:'text/csv;charset=utf-8;'});
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = `찐한관리_${month}_월간정산.csv`;
-  a.click();
+  const dateFrom = `${yr}-${mo}-01`;
+  const dateTo   = `${yr}-${mo}-${String(lastDay).padStart(2,'0')}`;
+
+  const btn = document.querySelector('[onclick="downloadCSV()"]');
+  const origHTML = btn.innerHTML;
+  btn.disabled = true;
+  btn.textContent = '다운로드 중…';
+
+  try {
+    const { data, error } = await sb
+      .from('call_records')
+      .select('call_date, manager_name, student_name, call_minutes')
+      .gte('call_date', dateFrom)
+      .lte('call_date', dateTo)
+      .order('manager_name', { ascending: true })
+      .order('call_date',    { ascending: true });
+
+    if (error) throw error;
+
+    const rows = [
+      ['월', '매니저 이름', '수강생 이름', '전화 일시', '콜 분수'],
+      ...(data || []).map(r => [
+        month,
+        r.manager_name,
+        r.student_name,
+        r.call_date,
+        r.call_minutes,
+      ])
+    ];
+
+    const blob = new Blob(['\uFEFF' + rows.map(r => r.join(',')).join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `찐한관리_${month}_콜기록.csv`;
+    a.click();
+  } catch (e) {
+    showToast('CSV 다운로드 실패: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = origHTML;
+  }
 }
 
 /* ════════════ 로그인 ════════════ */
