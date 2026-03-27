@@ -778,8 +778,9 @@ input:focus { border-color: var(--red); }
         <input type="date" id="input-date" />
       </div>
       <div class="form-group">
-        <label class="form-label">콜 분수</label>
+        <label class="form-label">콜 분수 <span style="color:var(--red);">*</span></label>
         <input type="number" id="input-minutes" placeholder="0" min="1" max="15" />
+        <div id="minutes-error" style="display:none; color:var(--red); font-size:12px; margin-top:4px;"></div>
       </div>
     </div>
     <div class="form-group">
@@ -1060,6 +1061,8 @@ function onCallTypeChange() {
   document.getElementById('type-hint').textContent =
     isPhone ? '전화상담은 최대 15분까지 기록할 수 있어요.'
             : '원격상담은 최대 30분까지 기록할 수 있어요.';
+  const errEl = document.getElementById('minutes-error');
+  if (errEl) { errEl.style.display = 'none'; errEl.textContent = ''; }
   document.getElementById('type-label-phone').style.background  = isPhone ? 'var(--red)' : '#fff';
   document.getElementById('type-label-phone').style.color       = isPhone ? '#fff' : 'var(--text-sub)';
   document.getElementById('type-label-remote').style.background = isPhone ? '#fff' : 'var(--red)';
@@ -1072,6 +1075,8 @@ function openSheet(editIdx) {
   const saveBtn = document.getElementById('sheet-save-btn');
   saveBtn.disabled = false;
   saveBtn.textContent = editIdx !== undefined ? '수정 완료' : '저장';
+  const errEl = document.getElementById('minutes-error');
+  if (errEl) { errEl.style.display = 'none'; errEl.textContent = ''; }
   const s = STUDENTS.find(x => x.id === currentStudentId);
   document.getElementById('sheet-student-tag').textContent = `${s.name} · ${s.phone}`;
 
@@ -1137,7 +1142,13 @@ async function saveRecord() {
   const maxMin   = callType === '전화상담' ? 15 : 30;
   if (!date) { showToast('날짜를 선택해 주세요.'); return; }
   if (!min || Number(min) <= 0) { showToast('콜 분수를 입력해 주세요.'); return; }
-  if (Number(min) > maxMin) { showToast(`${callType}은 최대 ${maxMin}분까지만 기록할 수 있어요.`); return; }
+  if (Number(min) > maxMin) {
+    const errEl = document.getElementById('minutes-error');
+    errEl.textContent = `최대 ${maxMin}분까지 기록 가능`;
+    errEl.style.display = 'block';
+    return;
+  }
+  document.getElementById('minutes-error').style.display = 'none';
   if (editingId === null && !currentImageFile) { showToast('캡처 화면을 첨부해 주세요.'); return; }
 
   const btn = document.getElementById('sheet-save-btn');
@@ -1300,19 +1311,21 @@ async function renderAdminCards() {
   const lastDay = new Date(Number(yr), Number(mo), 0).getDate();
 
   const { data } = await sb.from('call_records')
-    .select('manager_name, call_minutes')
+    .select('manager_name, call_minutes, call_type')
     .gte('call_date', `${month}-01`)
     .lte('call_date', `${month}-${String(lastDay).padStart(2, '0')}`);
 
   const statsMap = {};
   (data || []).forEach(r => {
-    if (!statsMap[r.manager_name]) statsMap[r.manager_name] = { calls: 0, minutes: 0 };
+    if (!statsMap[r.manager_name]) statsMap[r.manager_name] = { calls: 0, phone: 0, remote: 0, minutes: 0 };
     statsMap[r.manager_name].calls   += 1;
     statsMap[r.manager_name].minutes += r.call_minutes;
+    if (r.call_type === '원격상담') statsMap[r.manager_name].remote += 1;
+    else                            statsMap[r.manager_name].phone  += 1;
   });
 
   document.getElementById('manager-cards').innerHTML = ADMINS.map(m => {
-    const st = statsMap[m.name] || { calls: 0, minutes: 0 };
+    const st = statsMap[m.name] || { calls: 0, phone: 0, remote: 0, minutes: 0 };
     return `
     <div class="manager-card" style="cursor:pointer;" onclick="openAdminManagerDetail('${m.name}')">
       <div class="manager-card-top">
@@ -1323,7 +1336,9 @@ async function renderAdminCards() {
       </div>
       <div class="manager-stats">
         <div class="stat-item"><div class="stat-num">${m.students}</div><div class="stat-label">배정 수강생</div></div>
-        <div class="stat-item"><div class="stat-num">${st.calls}</div><div class="stat-label">콜 건수</div></div>
+        <div class="stat-item"><div class="stat-num">${st.calls}</div><div class="stat-label">전체 건수</div></div>
+        <div class="stat-item"><div class="stat-num">${st.phone}</div><div class="stat-label">📞 전화</div></div>
+        <div class="stat-item"><div class="stat-num">${st.remote}</div><div class="stat-label">🖥️ 원격</div></div>
         <div class="stat-item"><div class="stat-num">${st.minutes}</div><div class="stat-label">콜 분수</div></div>
       </div>
     </div>`;
