@@ -1,0 +1,1587 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+<title>찐한 관리 콜 기록 시스템</title>
+<link rel="icon" href="[Symbol]Sparta.svg" type="image/svg+xml" />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+<script src="https://accounts.google.com/gsi/client" async defer onload="initGoogleBtn()"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  /* ── Stack Tokens: sccLight ── */
+  --brand:         #E8344E;
+  --brand-hover:   #C9293F;
+  --brand-subtle:  #FFF3F5;
+  --brand-subtler: #FFDDE2;
+
+  --n0:   #FFFFFF;
+  --n5:   #F6F9FA;
+  --n10:  #F2F6F8;
+  --n20:  #E4EBF0;
+  --n50:  #9DA7AE;
+  --n60:  #81898F;
+  --n70:  #5F666B;
+  --n90:  #25282A;
+  --n100: #141617;
+
+  --success:    #079E07;
+  --success-bg: #F5FFF5;
+  --success-border: #ACEAAC;
+
+  --shadow-1: 0 1px 4px rgba(20,22,23,.07), 0 0 1px rgba(20,22,23,.05);
+
+  /* 앱 변수 */
+  --red:      var(--brand);
+  --red-bg:   var(--brand-subtle);
+  --bg:       var(--n5);
+  --card:     var(--n0);
+  --text:     var(--n90);
+  --sub:      var(--n70);
+  --muted:    var(--n50);
+  --border:   var(--n20);
+  --green:    var(--success);
+  --green-bg: var(--success-bg);
+  --radius:    12px;
+  --radius-sm: 8px;
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+body {
+  font-family: 'Pretendard', system-ui, sans-serif;
+  background: var(--bg); color: var(--text);
+  min-height: 100vh;
+  display: flex; justify-content: center;
+}
+
+.app {
+  width: 100%; max-width: 430px;
+  min-height: 100vh; background: var(--bg);
+  position: relative; overflow: hidden;
+}
+
+/* ── 스크린 ── */
+.screen {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column;
+  transform: translateX(100%);
+  transition: transform .28s cubic-bezier(.4,0,.2,1);
+  background: var(--bg);
+  overflow-y: auto; -webkit-overflow-scrolling: touch;
+}
+.screen.active { transform: translateX(0); }
+.screen.behind { transform: translateX(-30%); }
+
+/* ── 헤더 ── */
+.header {
+  display: flex; align-items: center; gap: 10px;
+  padding: 0 20px; height: 56px;
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+  position: sticky; top: 0; z-index: 10;
+  flex-shrink: 0;
+}
+.header-back {
+  width: 36px; height: 36px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; flex-shrink: 0; color: var(--text);
+  transition: background .15s;
+}
+.header-back:active { background: var(--border); }
+.header-title { font-size: 16px; font-weight: 700; flex: 1; }
+.header-sub   { font-size: 12px; color: var(--muted); font-weight: 400; }
+.header-divider {
+  width: 1px; height: 14px; background: var(--border); margin: 0 2px;
+}
+
+/* ── 로그인 ── */
+#screen-login {
+  background: var(--card);
+  justify-content: center; padding: 40px 28px;
+  transform: translateX(0);
+}
+.login-logo { text-align: center; margin-bottom: 36px; }
+.scc-logo {
+  display: inline-block; margin-bottom: 14px;
+}
+.login-title { font-size: 22px; font-weight: 800; color: var(--n100); }
+.login-sub   { font-size: 13px; color: var(--muted); margin-top: 4px; }
+.login-error {
+  font-size: 13px; color: var(--brand); font-weight: 500;
+  text-align: center; margin-top: 8px; display: none;
+}
+
+.form-group { margin-bottom: 14px; }
+.form-label {
+  display: block; font-size: 12px; font-weight: 600;
+  color: var(--sub); margin-bottom: 6px; letter-spacing: .3px;
+}
+input[type="email"], input[type="password"],
+input[type="text"], input[type="number"], input[type="date"] {
+  width: 100%; border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm); padding: 12px 14px;
+  font-size: 15px; color: var(--text);
+  font-family: 'Pretendard', system-ui, sans-serif;
+  outline: none; background: #fff;
+  transition: border-color .15s; -webkit-appearance: none;
+}
+input:focus { border-color: var(--red); }
+::placeholder { color: var(--muted); }
+
+.btn {
+  width: 100%; padding: 14px;
+  border-radius: var(--radius-sm); border: none;
+  font-size: 15px; font-weight: 700;
+  cursor: pointer; transition: opacity .15s;
+  font-family: 'Pretendard', system-ui, sans-serif;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+}
+.btn:active { opacity: .8; }
+.btn-red     { background: var(--red); color: #fff; }
+.btn-outline { background: #fff; color: var(--red); border: 1.5px solid var(--red); }
+.btn-ghost   { background: var(--bg); color: var(--sub); }
+
+.divider {
+  text-align: center; font-size: 12px; color: var(--muted);
+  margin: 18px 0 12px; position: relative;
+}
+.divider::before, .divider::after {
+  content: ''; position: absolute; top: 50%;
+  width: calc(50% - 40px); height: 1px; background: var(--border);
+}
+.divider::before { left: 0; }
+.divider::after  { right: 0; }
+.demo-row { display: flex; gap: 10px; }
+.demo-row .btn { font-size: 13px; padding: 11px; font-weight: 600; }
+
+/* ── 검색바 ── */
+.search-bar {
+  padding: 12px 16px; background: var(--card);
+  border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+.search-wrap { position: relative; }
+.search-wrap input {
+  padding-left: 38px; background: var(--bg);
+  border-color: transparent; border-radius: 10px; font-size: 14px;
+}
+.search-wrap input:focus { border-color: var(--red); background: #fff; }
+.search-icon {
+  position: absolute; left: 12px; top: 50%;
+  transform: translateY(-50%); color: var(--muted); pointer-events: none;
+}
+
+/* ── 수강생 카드 ── */
+.card-list { padding: 12px 16px; display: flex; flex-direction: column; gap: 10px; }
+
+.student-card {
+  background: var(--card); border-radius: var(--radius);
+  padding: 16px 18px; cursor: pointer;
+  transition: transform .12s, box-shadow .12s;
+  border: 1px solid var(--n20);
+  box-shadow: var(--shadow-1);
+  -webkit-tap-highlight-color: transparent;
+}
+.student-card:active { transform: scale(.985); }
+
+.card-top {
+  display: flex; align-items: flex-start;
+  justify-content: space-between; margin-bottom: 6px;
+}
+.card-name  { font-size: 16px; font-weight: 700; }
+.card-phone { font-size: 13px; color: var(--sub); margin-top: 5px; }
+
+/* Stack Tag (size=sm, round) */
+.record-badge {
+  flex-shrink: 0; font-size: 11px; font-weight: 600; letter-spacing: .1px;
+  padding: 2px 8px; border-radius: 99px; margin-left: 8px; margin-top: 2px;
+  border: 1px solid transparent;
+}
+/* 7번: 기록 있으면 초록 */
+.badge-none { background: var(--n10); color: var(--n60); border-color: var(--n20); }
+.badge-done { background: var(--success-bg); color: var(--success); border-color: var(--success-border); }
+
+.card-course {
+  font-size: 13px; color: var(--sub);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  margin-top: 8px; margin-bottom: 12px;
+}
+.card-footer { display: flex; align-items: center; gap: 12px; font-size: 12px; color: var(--muted); }
+.card-footer-item { display: flex; align-items: center; gap: 4px; }
+.card-footer-val  { font-weight: 700; color: var(--sub); }
+
+/* Stack Button: solid primary sm */
+.btn-record-inline {
+  flex-shrink: 0; background: var(--brand); color: #fff;
+  border: none; border-radius: 6px;
+  padding: 7px 14px; font-size: 13px; font-weight: 600; letter-spacing: -.1px;
+  cursor: pointer; font-family: 'Pretendard', system-ui, sans-serif;
+  -webkit-tap-highlight-color: transparent; transition: background .15s;
+}
+.btn-record-inline:active { background: var(--brand-hover); }
+
+.empty-state {
+  text-align: center; padding: 60px 20px;
+  color: var(--muted); font-size: 14px; line-height: 1.8;
+}
+
+/* ── 학생 상세 ── */
+.student-info-card {
+  margin: 14px 16px; background: var(--card);
+  border-radius: var(--radius); padding: 18px;
+  box-shadow: var(--shadow-1); border: 1px solid var(--n20);
+}
+.info-row { display: flex; align-items: baseline; gap: 12px; font-size: 13px; margin-bottom: 10px; }
+.info-row:last-child { margin-bottom: 0; }
+.info-label { color: var(--muted); min-width: 52px; width: 52px; flex-shrink: 0; white-space: nowrap; }
+.info-value { color: var(--text); font-weight: 500; flex: 1; line-height: 1.5; }
+.progress-pill {
+  font-size: 15px; font-weight: 700; color: var(--red);
+}
+
+/* 기록 섹션 */
+.records-section { padding: 0 16px 100px; }
+.records-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 0 12px;
+}
+.records-title { font-size: 15px; font-weight: 700; }
+.btn-add-record {
+  background: var(--red); color: #fff; border: none; border-radius: 8px;
+  padding: 8px 14px; font-size: 13px; font-weight: 700;
+  cursor: pointer; font-family: 'Pretendard', system-ui, sans-serif;
+  display: flex; align-items: center; gap: 4px;
+}
+
+.record-item {
+  background: var(--card); border-radius: var(--radius-sm);
+  padding: 14px 16px; margin-bottom: 10px;
+  border: 1px solid var(--border); box-shadow: var(--shadow-1);
+}
+.record-item-header {
+  display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;
+}
+.record-date { font-size: 13px; font-weight: 600; }
+.record-actions { display: flex; gap: 6px; }
+.action-btn {
+  font-size: 11px; color: var(--muted);
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: 6px; padding: 4px 9px;
+  cursor: pointer; font-family: 'Pretendard', system-ui, sans-serif;
+  transition: color .15s, border-color .15s;
+}
+.action-btn:active { color: var(--red); border-color: var(--brand-subtler); }
+.action-btn-del:active { color: #dc3545; }
+
+.record-body { display: flex; align-items: center; gap: 12px; }
+
+/* 4번: 썸네일 클릭 가능 */
+.record-thumb {
+  width: 64px; height: 64px; border-radius: 8px;
+  object-fit: cover; flex-shrink: 0;
+  border: 1px solid var(--border); cursor: pointer;
+  transition: opacity .15s;
+}
+.record-thumb:active { opacity: .8; }
+.record-thumb-placeholder {
+  width: 64px; height: 64px; border-radius: 8px;
+  background: var(--bg); border: 1px dashed var(--border);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px; flex-shrink: 0; color: var(--muted);
+}
+.record-meta { flex: 1; }
+.record-minutes { font-size: 22px; font-weight: 800; color: var(--red); line-height: 1; }
+.record-minutes span { font-size: 13px; font-weight: 500; color: var(--sub); margin-left: 2px; }
+.record-type { font-size: 12px; color: var(--sub); margin-top: 4px; }
+.no-records { text-align: center; padding: 30px 0; color: var(--muted); font-size: 14px; }
+
+/* ── 바텀시트 ── */
+.sheet-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,.5);
+  z-index: 50; opacity: 0; pointer-events: none; transition: opacity .28s;
+}
+.sheet-overlay.open { opacity: 1; pointer-events: auto; }
+
+.bottom-sheet {
+  position: fixed; bottom: 0; left: 50%;
+  transform: translateX(-50%) translateY(100%);
+  width: 100%; max-width: 430px;
+  background: var(--card); border-radius: 20px 20px 0 0;
+  z-index: 51; transition: transform .32s cubic-bezier(.4,0,.2,1);
+  padding-bottom: calc(20px + var(--safe-bottom));
+  max-height: 92vh; overflow-y: auto; -webkit-overflow-scrolling: touch;
+}
+.bottom-sheet.open { transform: translateX(-50%) translateY(0); }
+.bottom-sheet.dragging { transition: none; }
+
+.sheet-handle {
+  width: 40px; height: 4px; border-radius: 2px;
+  background: var(--border); margin: 12px auto 0; cursor: grab;
+}
+.sheet-header {
+  padding: 16px 20px 12px;
+  display: flex; align-items: center; justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+}
+.sheet-title { font-size: 17px; font-weight: 700; }
+.sheet-close {
+  font-size: 22px; color: var(--muted); cursor: pointer; line-height: 1;
+  width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;
+  border-radius: 50%; transition: background .15s;
+}
+.sheet-close:active { background: var(--bg); }
+.sheet-body { padding: 20px; }
+.sheet-footer { padding: 12px 20px; display: flex; gap: 10px; }
+.sheet-footer .btn { font-size: 15px; font-weight: 700; padding: 14px; }
+
+.sheet-student-tag {
+  background: var(--red-bg); color: var(--red);
+  border-radius: 8px; padding: 10px 14px;
+  font-size: 13px; font-weight: 600; margin-bottom: 20px;
+}
+.form-row { display: flex; gap: 12px; margin-bottom: 16px; }
+.form-row .form-group { flex: 1; margin-bottom: 0; }
+
+/* 업로드 */
+.upload-area {
+  border: 2px dashed var(--border); border-radius: 10px;
+  padding: 20px; text-align: center; cursor: pointer; position: relative;
+  transition: border-color .15s, background .15s;
+}
+.upload-area:active { border-color: var(--red); background: var(--red-bg); }
+.upload-area input[type="file"] {
+  position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+}
+.upload-icon { font-size: 24px; margin-bottom: 6px; }
+.upload-text { font-size: 13px; color: var(--sub); line-height: 1.6; }
+.upload-text strong { color: var(--red); }
+.upload-preview { margin-top: 10px; display: none; }
+.upload-preview img { max-height: 100px; border-radius: 8px; border: 1px solid var(--border); }
+.upload-filename { font-size: 11px; color: var(--green); margin-top: 6px; }
+
+/* ── 어드민 ── */
+.admin-section { padding: 14px 16px 100px; }
+.manager-card {
+  background: var(--card); border-radius: var(--radius);
+  padding: 16px 18px; margin-bottom: 10px;
+  border: 1px solid var(--n20); box-shadow: var(--shadow-1);
+}
+.manager-card-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.manager-name { font-size: 16px; font-weight: 700; }
+.status-pill { font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 20px; }
+.status-active   { background: var(--green-bg); color: var(--green); }
+.status-inactive { background: var(--bg); color: var(--muted); }
+.manager-stats { display: flex; }
+.stat-item { flex: 1; text-align: center; border-right: 1px solid var(--border); padding: 0 8px; }
+.stat-item:first-child { padding-left: 0; }
+.stat-item:last-child  { border-right: none; padding-right: 0; }
+.stat-num   { font-size: 20px; font-weight: 800; color: var(--text); }
+.stat-label { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.csv-btn-wrap { padding: 14px 16px 0; }
+
+/* ── select 드롭다운 공통 ── */
+.select-wrap { position: relative; }
+.select-wrap select {
+  width: 100%; padding: 11px 36px 11px 12px;
+  border: 1.5px solid var(--border); border-radius: var(--radius-sm);
+  font-size: 14px; font-family: inherit; color: var(--text);
+  background: #fff; outline: none;
+  -webkit-appearance: none; appearance: none; cursor: pointer;
+  transition: border-color .15s;
+}
+.select-wrap select:focus { border-color: var(--red); }
+.select-wrap::after {
+  content: ''; position: absolute; right: 12px; top: 50%;
+  transform: translateY(-50%); pointer-events: none;
+  width: 16px; height: 16px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%239DA7AE' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: center;
+}
+
+/* ── 어드민 상세 ── */
+.admin-student-block {
+  background: var(--card); border-radius: var(--radius);
+  border: 1px solid var(--n20); box-shadow: var(--shadow-1);
+  margin-bottom: 12px; overflow: hidden;
+}
+.admin-student-header {
+  padding: 14px 16px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+}
+.admin-student-name { font-size: 15px; font-weight: 700; }
+.admin-student-phone { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.admin-record-row {
+  padding: 12px 16px; display: flex; align-items: center; gap: 12px;
+  border-bottom: 1px solid var(--border);
+}
+.admin-record-row:last-child { border-bottom: none; }
+.admin-record-date  { font-size: 13px; color: var(--sub); width: 90px; flex-shrink: 0; }
+.admin-record-min   { font-size: 16px; font-weight: 800; color: var(--red); }
+.admin-record-min span { font-size: 12px; font-weight: 500; color: var(--muted); }
+.admin-record-thumb {
+  width: 40px; height: 40px; border-radius: 6px;
+  object-fit: cover; border: 1px solid var(--border); cursor: pointer; margin-left: auto;
+}
+.admin-no-record { padding: 14px 16px; font-size: 13px; color: var(--muted); }
+
+/* ── 이미지 라이트박스 ── */
+.lightbox {
+  position: fixed; inset: 0; background: rgba(0,0,0,.92);
+  z-index: 100; display: flex; align-items: center; justify-content: center;
+  opacity: 0; pointer-events: none; transition: opacity .2s;
+}
+.lightbox.open { opacity: 1; pointer-events: auto; }
+.lightbox img {
+  max-width: 90vw; max-height: 85vh;
+  border-radius: 10px; object-fit: contain;
+}
+.lightbox-close {
+  position: absolute; top: 20px; right: 20px;
+  width: 36px; height: 36px; border-radius: 50%;
+  background: rgba(255,255,255,.15); color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px; cursor: pointer;
+}
+
+/* ── 삭제 확인 모달 ── */
+.confirm-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,.5);
+  z-index: 200; display: flex; align-items: center; justify-content: center;
+  opacity: 0; pointer-events: none; transition: opacity .2s;
+  padding: 20px;
+}
+.confirm-overlay.open { opacity: 1; pointer-events: auto; }
+.confirm-box {
+  background: var(--card); border-radius: 16px;
+  width: 100%; max-width: 320px; overflow: hidden;
+  box-shadow: 0 8px 32px rgba(0,0,0,.2);
+  transform: scale(.92); transition: transform .2s;
+}
+.confirm-overlay.open .confirm-box { transform: scale(1); }
+.confirm-body {
+  padding: 28px 24px 20px; text-align: center;
+}
+.confirm-icon { font-size: 32px; margin-bottom: 12px; }
+.confirm-title { font-size: 16px; font-weight: 700; margin-bottom: 6px; }
+.confirm-desc  { font-size: 13px; color: var(--sub); line-height: 1.6; }
+.confirm-footer { display: flex; border-top: 1px solid var(--border); }
+.confirm-btn {
+  flex: 1; padding: 16px; border: none; background: none;
+  font-size: 15px; font-weight: 600; cursor: pointer;
+  font-family: 'Pretendard', system-ui, sans-serif;
+  transition: background .15s;
+}
+.confirm-btn:first-child { border-right: 1px solid var(--border); color: var(--sub); }
+.confirm-btn:first-child:active { background: var(--bg); }
+.confirm-btn-del { color: #E8344E; }
+.confirm-btn-del:active { background: var(--red-bg); }
+
+@keyframes spin { to { transform: rotate(360deg); } }
+.spinning { animation: spin .8s linear infinite; }
+
+/* ── 햄버거 메뉴 ── */
+.menu-wrap { position: relative; }
+.menu-btn {
+  width: 34px; height: 34px; border-radius: 8px; border: none;
+  background: transparent; color: var(--sub);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: background .15s, color .15s; flex-shrink: 0;
+}
+.menu-btn:active { background: var(--border); color: var(--text); }
+.dropdown-menu {
+  position: absolute; top: calc(100% + 6px); right: 0;
+  background: var(--card); border-radius: 12px; min-width: 172px;
+  box-shadow: 0 4px 24px rgba(0,0,0,.13), 0 0 0 1px rgba(0,0,0,.06);
+  overflow: hidden; z-index: 100;
+  opacity: 0; pointer-events: none;
+  transform: scale(.94) translateY(-6px);
+  transform-origin: top right;
+  transition: opacity .15s, transform .15s;
+}
+.dropdown-menu.open { opacity: 1; pointer-events: auto; transform: scale(1) translateY(0); }
+.dropdown-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 13px 16px; font-size: 14px; font-weight: 500; color: var(--text);
+  background: none; border: none; width: 100%; text-align: left;
+  cursor: pointer; font-family: inherit; transition: background .1s;
+}
+.dropdown-item:active { background: var(--n5); }
+.dropdown-item-muted { color: var(--muted); font-size: 13px; }
+.dropdown-divider { height: 1px; background: var(--border); margin: 2px 0; }
+
+/* ── 수강생 카운트 ── */
+.count-bar {
+  padding: 10px 18px 2px; font-size: 13px; color: var(--muted); flex-shrink: 0;
+}
+.count-bar strong { color: var(--n90); font-weight: 700; }
+
+/* ── 토스트 ── */
+.toast {
+  position: fixed; bottom: calc(84px + var(--safe-bottom)); left: 50%;
+  transform: translateX(-50%) translateY(10px);
+  background: var(--n90); color: #fff;
+  padding: 10px 18px; border-radius: 20px;
+  font-size: 13px; font-weight: 600; white-space: nowrap;
+  opacity: 0; transition: opacity .2s, transform .2s;
+  z-index: 300; pointer-events: none;
+}
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- ══════════════════════════════
+     로그인
+══════════════════════════════ -->
+<div class="screen active" id="screen-login">
+  <div class="login-logo">
+    <div class="scc-logo">
+      <img src="[Symbol]Sparta.svg" width="64" height="64" alt="Sparta" style="display:block;" />
+    </div>
+    <div class="login-title">찐한 관리</div>
+    <div class="login-sub">수강생 콜 기록 시스템</div>
+  </div>
+
+  <div id="google-btn-wrap" style="margin-bottom:6px; min-height:44px;"></div>
+  <p class="login-error" id="login-error"></p>
+  <p id="login-status" style="display:none;text-align:center;font-size:13px;color:var(--muted);margin-top:8px;">확인 중…</p>
+
+  <div class="divider">데모 미리보기</div>
+  <div class="demo-row">
+    <button class="btn btn-outline" onclick="goTo('screen-manager','김민혁')">매니저로 보기</button>
+    <button class="btn btn-ghost"   onclick="goTo('screen-admin')">어드민으로 보기</button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════
+     매니저 - 수강생 목록
+══════════════════════════════ -->
+<div class="screen" id="screen-manager">
+  <div class="header" style="overflow:visible;">
+    <div class="header-title">
+      찐한관리
+      <span class="header-divider"></span>
+      <span class="header-sub" id="manager-name-label">매니저</span>
+    </div>
+    <div class="menu-wrap">
+      <button class="menu-btn" onclick="toggleMenu('menu-mgr', event)">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+          <line x1="4" y1="6"  x2="20" y2="6"/>
+          <line x1="4" y1="12" x2="20" y2="12"/>
+          <line x1="4" y1="18" x2="20" y2="18"/>
+        </svg>
+      </button>
+      <div class="dropdown-menu" id="menu-mgr">
+        <button class="dropdown-item" onclick="fetchData(); closeMenu()">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M23 4v6h-6"/><path d="M1 20v-6h6"/>
+            <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
+          </svg>
+          데이터 업데이트
+        </button>
+        <div class="dropdown-divider"></div>
+        <button class="dropdown-item dropdown-item-muted" onclick="goTo('screen-login'); closeMenu()">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+            <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/>
+            <polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+          </svg>
+          로그아웃
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="search-bar">
+    <div class="search-wrap">
+      <span class="search-icon">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+      </span>
+      <input type="text" id="manager-search" placeholder="이름, 전화번호, 강의명 검색" oninput="filterCards(this.value)" />
+    </div>
+  </div>
+
+  <div class="count-bar" id="count-bar">수강생 <strong>0</strong>명</div>
+  <div class="card-list" id="card-list"></div>
+</div>
+
+<!-- ══════════════════════════════
+     학생 상세 + 기록 목록
+══════════════════════════════ -->
+<div class="screen" id="screen-detail">
+  <div class="header">
+    <div class="header-back" onclick="goBack('screen-manager')">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <path d="M19 12H5M12 5l-7 7 7 7"/>
+      </svg>
+    </div>
+    <div class="header-title" id="detail-header-name">수강생</div>
+  </div>
+
+  <div class="student-info-card">
+    <div class="info-row"><div class="info-label">연락처</div><div class="info-value" id="detail-phone">—</div></div>
+    <div class="info-row"><div class="info-label">강의</div><div class="info-value" id="detail-course">—</div></div>
+    <div class="info-row"><div class="info-label">수강기간</div><div class="info-value" id="detail-period">—</div></div>
+    <div class="info-row">
+      <div class="info-label">진도율</div>
+      <div class="info-value"><span class="progress-pill" id="detail-progress">0%</span></div>
+    </div>
+    <div class="info-row">
+      <div class="info-label">백오피스</div>
+      <div class="info-value">
+        <a id="backoffice-link" href="#" target="_blank" rel="noopener noreferrer"
+           style="display:inline-flex;align-items:center;gap:4px;font-size:13px;color:var(--brand);text-decoration:none;font-weight:600;">
+          바로가기
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/>
+            <polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
+          </svg>
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <div class="records-section">
+    <div class="records-header">
+      <div class="records-title">콜 기록 <span id="record-count" style="color:var(--red);">0</span></div>
+      <button class="btn-add-record" onclick="openSheet()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+        </svg>
+        기록 추가
+      </button>
+    </div>
+    <div id="records-list"></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════
+     어드민 (2번: 수강생 탭 제거)
+══════════════════════════════ -->
+<div class="screen" id="screen-admin">
+  <div class="header" style="overflow:visible;">
+    <div class="header-title">찐한관리 <span class="header-divider"></span><span class="header-sub">어드민</span></div>
+    <div class="menu-wrap">
+      <button class="menu-btn" onclick="toggleMenu('menu-adm', event)">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+          <line x1="4" y1="6"  x2="20" y2="6"/>
+          <line x1="4" y1="12" x2="20" y2="12"/>
+          <line x1="4" y1="18" x2="20" y2="18"/>
+        </svg>
+      </button>
+      <div class="dropdown-menu" id="menu-adm">
+        <button class="dropdown-item" onclick="fetchData(); closeMenu()">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M23 4v6h-6"/><path d="M1 20v-6h6"/>
+            <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
+          </svg>
+          데이터 업데이트
+        </button>
+        <div class="dropdown-divider"></div>
+        <button class="dropdown-item dropdown-item-muted" onclick="goTo('screen-login'); closeMenu()">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+            <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/>
+            <polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+          </svg>
+          로그아웃
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4번: 월 선택 + CSV 다운로드 -->
+  <div style="padding:14px 16px 0; display:flex; gap:8px; align-items:center;">
+    <div class="select-wrap" style="flex:1;">
+      <select id="settlement-month" onchange="renderAdminCards()">
+        <option value="2026-03">2026년 03월</option>
+        <option value="2026-02">2026년 02월</option>
+        <option value="2026-01">2026년 01월</option>
+        <option value="2025-12">2025년 12월</option>
+        <option value="2025-11">2025년 11월</option>
+        <option value="2025-10">2025년 10월</option>
+        <option value="2025-09">2025년 09월</option>
+        <option value="2025-08">2025년 08월</option>
+      </select>
+    </div>
+    <button class="btn btn-red" style="width:auto; padding:11px 16px; flex-shrink:0;" onclick="downloadCSV()">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+        <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+      </svg>
+      정산 CSV
+    </button>
+  </div>
+
+  <div class="admin-section" id="manager-cards"></div>
+</div>
+
+<!-- 5번: 어드민 - 매니저 기록 상세 화면 -->
+<div class="screen" id="screen-admin-manager-detail">
+  <div class="header">
+    <div class="header-back" onclick="goBack('screen-admin')">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <path d="M19 12H5M12 5l-7 7 7 7"/>
+      </svg>
+    </div>
+    <div class="header-title" id="admin-detail-manager-name">매니저</div>
+  </div>
+  <div style="padding:10px 16px; background:var(--card); border-bottom:1px solid var(--border); flex-shrink:0;">
+    <div class="select-wrap">
+      <select id="admin-detail-month" onchange="renderAdminManagerDetail()">
+        <option value="2026-03">2026년 03월</option>
+        <option value="2026-02">2026년 02월</option>
+        <option value="2026-01">2026년 01월</option>
+        <option value="2025-12">2025년 12월</option>
+        <option value="2025-11">2025년 11월</option>
+        <option value="2025-10">2025년 10월</option>
+        <option value="2025-09">2025년 09월</option>
+        <option value="2025-08">2025년 08월</option>
+      </select>
+    </div>
+  </div>
+  <div class="admin-section" id="admin-manager-detail-body" style="padding-top:8px;"></div>
+</div>
+
+<!-- ══════════════════════════════
+     바텀시트 - 기록 추가/수정
+══════════════════════════════ -->
+<div class="sheet-overlay" id="sheet-overlay" onclick="closeSheet()"></div>
+<div class="bottom-sheet" id="bottom-sheet">
+  <div class="sheet-handle" id="sheet-handle"></div>
+  <div class="sheet-header">
+    <div class="sheet-title" id="sheet-title">콜 기록 추가</div>
+    <div class="sheet-close" onclick="closeSheet()">×</div>
+  </div>
+  <div class="sheet-body">
+    <div class="sheet-student-tag" id="sheet-student-tag">수강생</div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">콜 날짜</label>
+        <input type="date" id="input-date" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">콜 분수</label>
+        <input type="number" id="input-minutes" placeholder="0" min="0" />
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">캡처 화면 <span style="color:var(--red);">*</span></label>
+      <div class="upload-area" id="upload-area">
+        <input type="file" accept="image/*" id="file-input" onchange="previewFile(event)" />
+        <div class="upload-icon">📎</div>
+        <div class="upload-text"><strong>사진 첨부</strong>하기<br/><span style="font-size:12px;">PNG, JPG</span></div>
+        <div class="upload-preview" id="upload-preview">
+          <img id="preview-img" src="" alt="미리보기" />
+          <div class="upload-filename" id="upload-filename"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="sheet-footer">
+    <button class="btn btn-ghost" style="flex:1;" onclick="closeSheet()">취소</button>
+    <button class="btn btn-red"   style="flex:2;" id="sheet-save-btn" onclick="saveRecord()">저장</button>
+  </div>
+</div>
+
+<!-- 4번: 이미지 라이트박스 -->
+<div class="lightbox" id="lightbox" onclick="closeLightbox()">
+  <div class="lightbox-close">×</div>
+  <img id="lightbox-img" src="" alt="확대 이미지" />
+</div>
+
+<!-- 6번: 삭제 확인 모달 -->
+<div class="confirm-overlay" id="confirm-overlay">
+  <div class="confirm-box">
+    <div class="confirm-body">
+      <div class="confirm-icon">🗑️</div>
+      <div class="confirm-title">기록을 삭제할까요?</div>
+      <div class="confirm-desc">삭제된 기록은 복구할 수 없어요.</div>
+    </div>
+    <div class="confirm-footer">
+      <button class="confirm-btn" onclick="closeConfirm()">취소</button>
+      <button class="confirm-btn confirm-btn-del" id="confirm-delete-btn">삭제</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+</div><!-- .app -->
+
+<script>
+/* ════════════ 데이터 ════════════ */
+const STUDENTS = [
+  { id:0, name:'김해찬', phone:'010-4629-1891',
+    course:'퀄리티는 높게, 과정은 쉽게 미드저니로 완성하는 AI 디자인 클래스',
+    start:'26.03.31', end:'26.05.04', progress:0 },
+  { id:1, name:'박용순', phone:'010-4438-7756',
+    course:'AI 네이버 블로그 수익화 클래스 : 키워드 발굴부터 자동화까지',
+    start:'26.03.31', end:'26.04.27', progress:12 },
+  { id:2, name:'박새빛', phone:'010-4902-1174',
+    course:'클릭으로 완성하는 AI 영상/이미지 제작 실습 클래스',
+    start:'26.03.31', end:'26.04.27', progress:0 },
+  { id:3, name:'서지연', phone:'010-4658-2775',
+    course:'클릭으로 완성하는 AI 영상/이미지 제작 실습 클래스',
+    start:'26.03.31', end:'26.04.27', progress:5 },
+  { id:4, name:'유연호', phone:'010-3371-8926',
+    course:'퀄리티는 높게, 과정은 쉽게 미드저니로 완성하는 AI 디자인 클래스',
+    start:'26.03.31', end:'26.05.04', progress:0 },
+  { id:5, name:'이유리', phone:'010-9044-4226',
+    course:'칼피를 부르는 AI 엑셀 업무 자동화',
+    start:'26.03.31', end:'26.05.04', progress:22 },
+  { id:6, name:'배승준', phone:'010-9352-1855',
+    course:'노코드로 수익형 AI 앱 만들기',
+    start:'26.03.31', end:'26.05.04', progress:0 },
+];
+
+const RECORDS = {};
+
+const ADMINS = [
+  { name:'김민혁', status:'active',   students:312, calls:48, minutes:237 },
+  { name:'이에리', status:'active',   students:287, calls:51, minutes:263 },
+  { name:'홍동욱', status:'active',   students:341, calls:39, minutes:198 },
+  { name:'신원희', status:'inactive', students:0,   calls:0,  minutes:0   },
+];
+
+let currentStudentId    = null;
+let currentAdminManager = null;
+let currentManagerName  = null;
+let realDataLoaded      = false;
+let editingIndex        = null;
+let editingId           = null;
+let pendingDelete       = null;
+let currentImageFile    = null;
+
+const sb = supabase.createClient(
+  'https://kcjulzlkzkalfexhjyvc.supabase.co',
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtjanVsemxremthbGZleGhqeXZjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQzMTA2NDYsImV4cCI6MjA4OTg4NjY0Nn0.Yl3SdxvYKdEKmMRDfyKLTVpXwOsn5YBwh45Oma72Qsk'
+);
+
+/* ════════════ 화면 전환 ════════════ */
+function goTo(id, managerName) {
+  const cur = document.querySelector('.screen.active');
+  if (cur && cur.id !== id) {
+    cur.classList.remove('active');
+    cur.classList.add('behind');
+    setTimeout(() => cur.classList.remove('behind'), 320);
+  }
+  const next = document.getElementById(id);
+  next.classList.add('active');
+
+  if (id === 'screen-manager' && managerName) {
+    currentManagerName = managerName;
+    document.getElementById('manager-name-label').textContent = managerName + ' 매니저';
+  }
+  if (id === 'screen-manager') renderCards(getManagerStudents());
+  if (id === 'screen-admin')   renderAdminCards();
+}
+
+function goBack(targetId) {
+  const cur = document.querySelector('.screen.active');
+  cur.classList.remove('active');
+  cur.style.transition = 'transform .28s cubic-bezier(.4,0,.2,1)';
+  cur.style.transform  = 'translateX(100%)';
+  setTimeout(() => { cur.style.transform = ''; }, 320);
+  const prev = document.getElementById(targetId);
+  prev.classList.remove('behind');
+  prev.classList.add('active');
+}
+
+/* ════════════ 햄버거 메뉴 ════════════ */
+function toggleMenu(id, e) {
+  e.stopPropagation();
+  const menu = document.getElementById(id);
+  const isOpen = menu.classList.contains('open');
+  closeMenu();
+  if (!isOpen) menu.classList.add('open');
+}
+function closeMenu() {
+  document.querySelectorAll('.dropdown-menu.open').forEach(m => m.classList.remove('open'));
+}
+document.addEventListener('click', closeMenu);
+
+/* ════════════ 카드 렌더링 ════════════ */
+function renderCards(list) {
+  const countBar = document.getElementById('count-bar');
+  if (countBar) countBar.innerHTML = `수강생 <strong>${list.length}</strong>명`;
+  const el = document.getElementById('card-list');
+  if (!list.length) {
+    el.innerHTML = `<div class="empty-state">검색 결과가 없어요.</div>`;
+    return;
+  }
+  el.innerHTML = list.map(s => {
+    const recs     = (RECORDS[s.id] || []).length;
+    const badge    = recs
+      ? `<span class="record-badge badge-done">기록 ${recs}건</span>`
+      : `<span class="record-badge badge-none">기록 없음</span>`;
+    const lastRec  = (RECORDS[s.id] || [])[0];
+    const lastCall = lastRec ? lastRec.date : '없음';
+    return `
+    <div class="student-card" onclick="openDetail(${s.id})">
+      <div class="card-top">
+        <div>
+          <div class="card-name">${s.name}</div>
+          <div class="card-phone">${s.phone}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          ${badge}
+          <button class="btn-record-inline"
+                  onclick="event.stopPropagation();openDetailAndSheet(${s.id})">기록하기</button>
+        </div>
+      </div>
+      <div class="card-course">${s.course}</div>
+      <div class="card-footer">
+        <div class="card-footer-item">진도율 <span class="card-footer-val" style="color:var(--red);">${s.progress}%</span></div>
+        <div style="width:1px;height:10px;background:var(--border);"></div>
+        <div class="card-footer-item">최근 콜 <span class="card-footer-val">${lastCall}</span></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function getManagerStudents() {
+  if (!realDataLoaded || !currentManagerName) return STUDENTS;
+  const ids = MANAGER_STUDENTS[currentManagerName] || [];
+  return STUDENTS.filter(s => ids.includes(s.id));
+}
+
+function filterCards(q) {
+  const kw = q.trim();
+  const base = getManagerStudents();
+  renderCards(kw
+    ? base.filter(s => s.name.includes(kw) || s.phone.includes(kw) || s.course.includes(kw))
+    : base);
+}
+
+/* ════════════ 학생 상세 ════════════ */
+function openDetail(id) {
+  currentStudentId = id;
+  const s = STUDENTS.find(x => x.id === id);
+  document.getElementById('detail-header-name').textContent = s.name;
+  document.getElementById('detail-phone').textContent  = s.phone;
+  document.getElementById('detail-course').textContent = s.course;
+  document.getElementById('detail-period').textContent = `${s.start} ~ ${s.end}`;
+  document.getElementById('detail-progress').textContent = s.progress + '%';
+  document.getElementById('backoffice-link').href =
+    `https://academia.backoffice.spartaclub.kr/user/${id}/counseling`;
+  renderRecords(id);
+  goTo('screen-detail');
+}
+
+function openDetailAndSheet(id) {
+  openDetail(id);
+  setTimeout(() => openSheet(), 320);
+}
+
+async function renderRecords(id) {
+  const el = document.getElementById('records-list');
+  if (el) el.innerHTML = `<div class="no-records">불러오는 중…</div>`;
+
+  const { data, error } = await sb.from('call_records')
+    .select('*')
+    .eq('student_user_id', id)
+    .order('call_date', { ascending: false });
+
+  if (error) {
+    console.error('[renderRecords] Supabase error:', error);
+    if (el) el.innerHTML = `<div class="no-records">⚠️ 기록을 불러오지 못했어요.<br/><span style="font-size:11px;color:var(--muted);">${error.message}</span></div>`;
+    return;
+  }
+
+  RECORDS[id] = (data || []).map(r => ({
+    id:      r.id,
+    date:    r.call_date,
+    minutes: r.call_minutes,
+    imgSrc:  r.image_path
+      ? sb.storage.from('call-images').getPublicUrl(r.image_path).data.publicUrl
+      : '',
+    imgName: r.image_path || '',
+  }));
+
+  const list = RECORDS[id];
+  const countEl = document.getElementById('record-count');
+  if (countEl) countEl.textContent = list.length;
+
+  if (!el) return;
+  if (!list.length) {
+    el.innerHTML = `<div class="no-records">아직 기록이 없어요.<br/>첫 번째 콜 기록을 추가해 보세요 😊</div>`;
+    return;
+  }
+  el.innerHTML = list.map((r, i) => `
+    <div class="record-item" style="cursor:pointer;" onclick="r_openImg(${id},${i},event)">
+      <div class="record-item-header">
+        <div class="record-date">${r.date}</div>
+        <div class="record-actions">
+          <button class="action-btn" onclick="event.stopPropagation();editRecord(${id},${i})">수정</button>
+          <button class="action-btn action-btn-del" onclick="event.stopPropagation();confirmDelete(${id},${i})">삭제</button>
+        </div>
+      </div>
+      <div class="record-body">
+        ${r.imgSrc
+          ? `<img class="record-thumb" src="${r.imgSrc}" alt="캡처" onclick="openLightbox('${r.imgSrc}')" />`
+          : `<div class="record-thumb-placeholder">
+               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                 <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/>
+                 <polyline points="21 15 16 10 5 21"/>
+               </svg>
+             </div>`}
+        <div class="record-meta">
+          <div class="record-minutes">${r.minutes}<span>분</span></div>
+          <div class="record-type">콜 상담</div>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+/* ════════════ 바텀시트 ════════════ */
+function openSheet(editIdx) {
+  currentImageFile = null;
+  document.getElementById('file-input').value = '';
+  const s = STUDENTS.find(x => x.id === currentStudentId);
+  document.getElementById('sheet-student-tag').textContent = `${s.name} · ${s.phone}`;
+
+  if (editIdx !== undefined) {
+    // 수정 모드
+    editingIndex = editIdx;
+    editingId    = (RECORDS[currentStudentId]?.[editIdx] || {}).id || null;
+    const r = RECORDS[currentStudentId][editIdx];
+    document.getElementById('sheet-title').textContent    = '콜 기록 수정';
+    document.getElementById('sheet-save-btn').textContent = '수정 완료';
+    document.getElementById('input-date').value    = r.date;
+    document.getElementById('input-minutes').value = r.minutes;
+    if (r.imgSrc) {
+      document.getElementById('preview-img').src = r.imgSrc;
+      document.getElementById('upload-filename').textContent = r.imgName || '첨부된 이미지';
+      document.getElementById('upload-preview').style.display = 'block';
+    } else {
+      document.getElementById('upload-preview').style.display = 'none';
+    }
+  } else {
+    // 추가 모드
+    editingIndex = null;
+    editingId    = null;
+    document.getElementById('sheet-title').textContent    = '콜 기록 추가';
+    document.getElementById('sheet-save-btn').textContent = '저장';
+    document.getElementById('input-date').value    = new Date().toISOString().split('T')[0];
+    document.getElementById('input-minutes').value = '';
+    document.getElementById('upload-preview').style.display = 'none';
+    document.getElementById('preview-img').src = '';
+  }
+
+  document.getElementById('sheet-overlay').classList.add('open');
+  document.getElementById('bottom-sheet').classList.add('open');
+  // 뒤 화면 스크롤 잠금
+  const active = document.querySelector('.screen.active');
+  if (active) active.style.overflowY = 'hidden';
+}
+
+function editRecord(sid, idx) {
+  currentStudentId = sid;
+  openSheet(idx);
+}
+
+function closeSheet() {
+  document.getElementById('sheet-overlay').classList.remove('open');
+  document.getElementById('bottom-sheet').classList.remove('open');
+  editingIndex     = null;
+  editingId        = null;
+  currentImageFile = null;
+  // 뒤 화면 스크롤 복구
+  const active = document.querySelector('.screen.active');
+  if (active) active.style.overflowY = '';
+}
+
+async function saveRecord() {
+  const date = document.getElementById('input-date').value;
+  const min  = document.getElementById('input-minutes').value;
+  if (!date) { alert('날짜를 선택해 주세요.'); return; }
+  if (!min || Number(min) <= 0) { alert('콜 분수를 입력해 주세요.'); return; }
+  if (editingId === null && !currentImageFile) { alert('캡처 화면을 첨부해 주세요.'); return; }
+
+  const btn = document.getElementById('sheet-save-btn');
+  const isEditing = editingId !== null;
+  btn.disabled = true;
+  btn.textContent = '저장 중…';
+
+  try {
+    // 기존 이미지 경로 유지 (수정 시 새 파일 없으면)
+    let imagePath = null;
+    if (isEditing) {
+      const existing = (RECORDS[currentStudentId] || []).find(r => r.id === editingId);
+      imagePath = existing?.imgName || null;
+    }
+
+    // 새 파일 업로드
+    if (currentImageFile) {
+      const ext  = currentImageFile.name.split('.').pop().toLowerCase();
+      const path = `${currentStudentId}/${Date.now()}.${ext}`;
+      const { error: upErr } = await sb.storage.from('call-images').upload(path, currentImageFile);
+      if (upErr) throw upErr;
+      imagePath = path;
+    }
+
+    const s = STUDENTS.find(x => x.id === currentStudentId);
+    const payload = {
+      student_user_id: currentStudentId,
+      student_name:    s.name,
+      manager_name:    currentManagerName,
+      call_date:       date,
+      call_minutes:    Number(min),
+      image_path:      imagePath,
+    };
+
+    if (isEditing) {
+      const { error } = await sb.from('call_records').update(payload).eq('id', editingId);
+      if (error) throw error;
+    } else {
+      const { error } = await sb.from('call_records').insert(payload);
+      if (error) throw error;
+    }
+
+    closeSheet();
+    await renderRecords(currentStudentId);
+    renderCards(getManagerStudents());
+    showToast('저장 완료!');
+  } catch (e) {
+    btn.disabled = false;
+    btn.textContent = isEditing ? '수정 완료' : '저장';
+    showToast('저장 실패: ' + e.message);
+  }
+}
+
+function previewFile(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  currentImageFile = file;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    document.getElementById('preview-img').src = ev.target.result;
+    document.getElementById('upload-filename').textContent = file.name;
+    document.getElementById('upload-preview').style.display = 'block';
+  };
+  reader.readAsDataURL(file);
+}
+
+/* ════════════ 3번: 바텀시트 스와이프 ════════════ */
+(function() {
+  const sheet   = document.getElementById('bottom-sheet');
+  const handle  = document.getElementById('sheet-handle');
+  let startY = 0, curY = 0, dragging = false;
+
+  function onStart(e) {
+    const touch = e.touches ? e.touches[0] : e;
+    startY   = touch.clientY;
+    dragging = true;
+    sheet.classList.add('dragging');
+  }
+  function onMove(e) {
+    if (!dragging) return;
+    const touch = e.touches ? e.touches[0] : e;
+    curY = touch.clientY - startY;
+    if (curY < 0) curY = 0;
+    sheet.style.transform = `translateX(-50%) translateY(${curY}px)`;
+  }
+  function onEnd() {
+    if (!dragging) return;
+    dragging = false;
+    sheet.classList.remove('dragging');
+    sheet.style.transform = '';
+    if (curY > 100) closeSheet();
+    curY = 0;
+  }
+
+  // 핸들과 시트 상단 영역에 스와이프 이벤트
+  [handle, sheet].forEach(el => {
+    el.addEventListener('touchstart', onStart, { passive: true });
+    el.addEventListener('touchmove', onMove, { passive: true });
+    el.addEventListener('touchend', onEnd);
+  });
+})();
+
+/* ════════════ 라이트박스 ════════════ */
+function openLightbox(src) {
+  document.getElementById('lightbox-img').src = src;
+  document.getElementById('lightbox').classList.add('open');
+}
+function closeLightbox() {
+  document.getElementById('lightbox').classList.remove('open');
+}
+// 기록 카드 전체 클릭 → 이미지 라이트박스
+function r_openImg(sid, idx, e) {
+  const r = (RECORDS[sid] || [])[idx];
+  if (r && r.imgSrc) openLightbox(r.imgSrc);
+}
+
+/* ════════════ 6번: 삭제 확인 모달 ════════════ */
+function confirmDelete(sid, idx) {
+  pendingDelete = { sid, idx };
+  document.getElementById('confirm-overlay').classList.add('open');
+  document.getElementById('confirm-delete-btn').onclick = async () => {
+    const record = (RECORDS[sid] || [])[idx];
+    if (record?.id) {
+      const { error } = await sb.from('call_records').delete().eq('id', record.id);
+      if (error) { showToast('삭제 실패: ' + error.message); closeConfirm(); return; }
+    }
+    closeConfirm();
+    await renderRecords(sid);
+    renderCards(getManagerStudents());
+  };
+}
+function closeConfirm() {
+  document.getElementById('confirm-overlay').classList.remove('open');
+  pendingDelete = null;
+}
+document.getElementById('confirm-overlay').addEventListener('click', e => {
+  if (e.target === document.getElementById('confirm-overlay')) closeConfirm();
+});
+
+/* ════════════ 어드민 ════════════ */
+// 수강생-매니저 매핑 (mock)
+const MANAGER_STUDENTS = {
+  '김민혁': [0, 4],
+  '이에리': [1, 5],
+  '이기찬': [2],
+  '이승미': [3],
+  '홍동욱': [6],
+  '신원희': [],
+};
+
+async function renderAdminCards() {
+  const month = document.getElementById('settlement-month')?.value || '2026-03';
+  const [yr, mo] = month.split('-');
+  const lastDay = new Date(Number(yr), Number(mo), 0).getDate();
+
+  const { data } = await sb.from('call_records')
+    .select('manager_name, call_minutes')
+    .gte('call_date', `${month}-01`)
+    .lte('call_date', `${month}-${String(lastDay).padStart(2, '0')}`);
+
+  const statsMap = {};
+  (data || []).forEach(r => {
+    if (!statsMap[r.manager_name]) statsMap[r.manager_name] = { calls: 0, minutes: 0 };
+    statsMap[r.manager_name].calls   += 1;
+    statsMap[r.manager_name].minutes += r.call_minutes;
+  });
+
+  document.getElementById('manager-cards').innerHTML = ADMINS.map(m => {
+    const st = statsMap[m.name] || { calls: 0, minutes: 0 };
+    return `
+    <div class="manager-card" style="cursor:pointer;" onclick="openAdminManagerDetail('${m.name}')">
+      <div class="manager-card-top">
+        <div class="manager-name">${m.name} <span style="font-size:12px;font-weight:500;color:var(--muted);">매니저</span></div>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="color:var(--muted)">
+          <path d="M9 18l6-6-6-6"/>
+        </svg>
+      </div>
+      <div class="manager-stats">
+        <div class="stat-item"><div class="stat-num">${m.students}</div><div class="stat-label">배정 수강생</div></div>
+        <div class="stat-item"><div class="stat-num">${st.calls}</div><div class="stat-label">콜 건수</div></div>
+        <div class="stat-item"><div class="stat-num">${st.minutes}</div><div class="stat-label">콜 분수</div></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function openAdminManagerDetail(managerName) {
+  currentAdminManager = managerName;
+  document.getElementById('admin-detail-manager-name').textContent = managerName + ' 매니저 기록 상세';
+  // 현재 어드민 메인의 월과 동기화
+  const mainMonth = document.getElementById('settlement-month').value;
+  document.getElementById('admin-detail-month').value = mainMonth;
+  renderAdminManagerDetail();
+  goTo('screen-admin-manager-detail');
+}
+
+async function renderAdminManagerDetail() {
+  const managerName = currentAdminManager;
+  const month = document.getElementById('admin-detail-month').value;
+  const [yr, mo] = month.split('-');
+  const lastDay = new Date(Number(yr), Number(mo), 0).getDate();
+  const ids = MANAGER_STUDENTS[managerName] || [];
+  const body = document.getElementById('admin-manager-detail-body');
+
+  body.innerHTML = `<div class="empty-state">불러오는 중…</div>`;
+
+  const { data, error } = await sb.from('call_records')
+    .select('*')
+    .in('student_user_id', ids.length ? ids : [-1])
+    .gte('call_date', `${month}-01`)
+    .lte('call_date', `${month}-${String(lastDay).padStart(2, '0')}`);
+
+  if (error) {
+    console.error('[renderAdminManagerDetail] Supabase error:', error);
+    body.innerHTML = `<div class="empty-state">⚠️ 기록을 불러오지 못했어요.<br/><span style="font-size:12px;color:var(--muted);">${error.message}</span></div>`;
+    return;
+  }
+
+  const mon = Number(mo);
+
+  // 수강생별 그룹화
+  const filteredByStudent = {};
+  ids.forEach(sid => { filteredByStudent[sid] = []; });
+  (data || []).forEach(r => {
+    if (filteredByStudent[r.student_user_id] !== undefined) {
+      filteredByStudent[r.student_user_id].push(r);
+    }
+  });
+
+  let totalCalls = 0, totalMinutes = 0;
+  ids.forEach(sid => {
+    totalCalls   += filteredByStudent[sid].length;
+    totalMinutes += filteredByStudent[sid].reduce((s, r) => s + r.call_minutes, 0);
+  });
+
+  const summaryHTML = `
+    <div style="background:var(--card);border-radius:var(--radius);border:1px solid var(--n20);
+      box-shadow:var(--shadow-1);margin-bottom:16px;padding:16px 18px;">
+      <div style="font-size:12px;color:var(--muted);margin-bottom:12px;font-weight:600;">
+        ${yr.slice(2)}/${mon}/1~${mon}/${lastDay} 요약
+      </div>
+      <div style="display:flex;">
+        <div class="stat-item"><div class="stat-num">${ids.length}</div><div class="stat-label">배정 수강생</div></div>
+        <div class="stat-item"><div class="stat-num">${totalCalls}</div><div class="stat-label">콜 건수</div></div>
+        <div class="stat-item"><div class="stat-num">${totalMinutes}</div><div class="stat-label">콜 분수</div></div>
+      </div>
+    </div>`;
+
+  if (!ids.length) {
+    body.innerHTML = summaryHTML + `<div class="empty-state">배정된 수강생이 없어요.</div>`;
+    return;
+  }
+
+  body.innerHTML = summaryHTML + ids.map(sid => {
+    const s = STUDENTS.find(x => x.id === sid);
+    if (!s) return '';
+    const recs = filteredByStudent[sid];
+    const recRows = recs.length
+      ? recs.map(r => {
+          const imgUrl = r.image_path
+            ? sb.storage.from('call-images').getPublicUrl(r.image_path).data.publicUrl
+            : '';
+          return `
+          <div class="admin-record-row">
+            <div class="admin-record-date">${r.call_date}</div>
+            <div class="admin-record-min">${r.call_minutes}<span>분</span></div>
+            ${imgUrl
+              ? `<img class="admin-record-thumb" src="${imgUrl}" onclick="openLightbox('${imgUrl}')" />`
+              : `<div style="margin-left:auto;width:40px;height:40px;border-radius:6px;background:var(--bg);
+                   border:1px dashed var(--border);display:flex;align-items:center;justify-content:center;
+                   font-size:14px;color:var(--muted);">🖼️</div>`}
+          </div>`;
+        }).join('')
+      : `<div class="admin-no-record">해당 월 기록 없음</div>`;
+    return `
+      <div class="admin-student-block">
+        <div class="admin-student-header">
+          <div>
+            <div class="admin-student-name">${s.name}</div>
+            <div class="admin-student-phone">${s.phone}</div>
+          </div>
+          <span class="record-badge ${recs.length ? 'badge-done' : 'badge-none'}">
+            ${recs.length ? `기록 ${recs.length}건` : '기록 없음'}
+          </span>
+        </div>
+        ${recRows}
+      </div>`;
+  }).join('');
+}
+
+function downloadCSV() {
+  const month = document.getElementById('settlement-month').value;
+  const [yr, mo] = month.split('-');
+  const lastDay = new Date(Number(yr), Number(mo), 0).getDate();
+  const mon = Number(mo);
+  const dateRange = `${yr.slice(2)}/${mon}/1~${mon}/${lastDay}`;
+  const rows = [
+    [`기간: ${dateRange}`],
+    ['매니저명','배정수강생','콜건수','콜분수합계'],
+    ...ADMINS.map(m => [m.name, m.students, m.calls, m.minutes])
+  ];
+  const blob = new Blob(['\uFEFF'+rows.map(r=>r.join(',')).join('\n')], {type:'text/csv;charset=utf-8;'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `찐한관리_${month}_월간정산.csv`;
+  a.click();
+}
+
+/* ════════════ 로그인 ════════════ */
+function showLoginError(msg) {
+  const el = document.getElementById('login-error');
+  el.textContent = msg; el.style.display = msg ? 'block' : 'none';
+}
+
+function parseJwt(token) {
+  const b64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+  return JSON.parse(decodeURIComponent(
+    atob(b64).split('').map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join('')
+  ));
+}
+
+function initGoogleBtn() {
+  google.accounts.id.initialize({
+    client_id: '19183746767-plh07mcdekp02l7h3uel2rm69voo6ltp.apps.googleusercontent.com',
+    callback: handleGoogleLogin,
+  });
+  const wrap = document.getElementById('google-btn-wrap');
+  google.accounts.id.renderButton(wrap, {
+    theme: 'outline', size: 'large',
+    text: 'signin_with', shape: 'rectangular',
+    logo_alignment: 'left', width: wrap.offsetWidth || 340,
+  });
+}
+
+function handleGoogleLogin(response) {
+  const email = parseJwt(response.credential).email;
+  verifyManagerEmail(email);
+}
+
+async function verifyManagerEmail(email) {
+  const statusEl = document.getElementById('login-status');
+  statusEl.style.display = 'block';
+  showLoginError('');
+
+  try {
+    // @teamsparta.co 도메인 → 어드민
+    if (email.toLowerCase().endsWith('@teamsparta.co')) {
+      goTo('screen-admin'); return;
+    }
+
+    const res = await fetch(MANAGERS_URL, { cache: 'no-store' });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const lines = (await res.text()).trim().split('\n');
+    const headers = parseCSVLine(lines[0]).map(h => h.trim());
+    const rows = lines.slice(1).map(l => {
+      const vals = parseCSVLine(l);
+      const obj = {};
+      headers.forEach((h, i) => obj[h] = (vals[i] || '').trim());
+      return obj;
+    });
+
+    const manager = rows.find(r =>
+      (r['매니저이메일'] || '').toLowerCase() === email.toLowerCase()
+    );
+    if (!manager) { showLoginError('등록되지 않은 이메일입니다.'); return; }
+    if ((manager['status'] || '').toLowerCase() === 'inactive') {
+      showLoginError('접근 권한이 없습니다. 관리자에게 문의해 주세요.'); return;
+    }
+
+    goTo('screen-manager', manager['매니저명']);
+
+  } catch (e) {
+    showLoginError('데이터를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.');
+  } finally {
+    statusEl.style.display = 'none';
+  }
+}
+
+/* ════════════ 토스트 ════════════ */
+function showToast(msg, ms = 2500) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), ms);
+}
+
+/* ════════════ 데이터 fetch ════════════ */
+const REDASH_URL =
+  'https://docs.google.com/spreadsheets/d/1hMtqOkHcijqfFEFYkIgABOOx82y4O7JqRepdvxGgSBo' +
+  '/export?format=csv&gid=1547983458';
+
+const MANAGERS_URL =
+  'https://docs.google.com/spreadsheets/d/1hMtqOkHcijqfFEFYkIgABOOx82y4O7JqRepdvxGgSBo' +
+  '/export?format=csv&gid=1494913409';
+
+function parseCSVLine(line) {
+  const res = []; let cur = '', inQ = false;
+  for (const ch of line) {
+    if (ch === '"') { inQ = !inQ; }
+    else if (ch === ',' && !inQ) { res.push(cur); cur = ''; }
+    else cur += ch;
+  }
+  res.push(cur);
+  return res;
+}
+
+function fmtPhone(p) {
+  p = (p || '').replace(/\D/g, '');
+  return p.length === 11 ? `${p.slice(0,3)}-${p.slice(3,7)}-${p.slice(7)}` : p;
+}
+
+async function fetchData() {
+  showToast('업데이트 중…', 30000);
+  try {
+    const res = await fetch(REDASH_URL, { cache: 'no-store' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const text = await res.text();
+
+    const lines = text.trim().split('\n');
+    const headers = parseCSVLine(lines[0]).map(h => h.trim());
+    const rows = lines.slice(1).map(l => {
+      const vals = parseCSVLine(l);
+      const obj = {};
+      headers.forEach((h, i) => obj[h] = (vals[i] || '').trim());
+      return obj;
+    }).filter(r => r['수강생 user_id']);
+
+    // 수강생 빌드 (user_id 기준 중복 제거)
+    const studentMap = {};
+    const mgStudentsMap = {};
+    rows.forEach(row => {
+      const id = Number(row['수강생 user_id']);
+      const mgName = row['매니저명'];
+      if (!studentMap[id]) {
+        studentMap[id] = {
+          id,
+          name:     row['배정 수강생'],
+          phone:    fmtPhone(row['전화번호']),
+          course:   row['구매 상품명'],
+          start:    (row['수강 시작일'] || '').substring(0, 10),
+          end:      (row['수강 종료일'] || '').substring(0, 10),
+          progress: Math.round(parseFloat(row['진도율']) || 0),
+          managerName: mgName,
+        };
+      }
+      if (!mgStudentsMap[mgName]) mgStudentsMap[mgName] = [];
+      if (!mgStudentsMap[mgName].includes(id)) mgStudentsMap[mgName].push(id);
+    });
+
+    // 전역 업데이트
+    STUDENTS.length = 0;
+    Object.values(studentMap).forEach(s => STUDENTS.push(s));
+    Object.assign(MANAGER_STUDENTS, mgStudentsMap);
+
+    const oldAdmins = ADMINS.map(a => ({ ...a }));
+    ADMINS.length = 0;
+    [...new Set(rows.map(r => r['매니저명']))].forEach(name => {
+      const old = oldAdmins.find(a => a.name === name) || { calls: 0, minutes: 0 };
+      ADMINS.push({
+        name, status: 'active',
+        students: (mgStudentsMap[name] || []).length,
+        calls: old.calls, minutes: old.minutes,
+      });
+    });
+
+    realDataLoaded = true;
+
+    // 현재 화면 리렌더
+    const cur = document.querySelector('.screen.active');
+    if (cur?.id === 'screen-manager') renderCards(getManagerStudents());
+    if (cur?.id === 'screen-admin')   renderAdminCards();
+
+    showToast(`업데이트 완료 · 수강생 ${STUDENTS.length}명`);
+  } catch (e) {
+    showToast('');
+    alert('데이터를 불러오지 못했어요.\n' + e.message);
+  }
+}
+
+/* 초기화 */
+renderCards(STUDENTS);
+renderAdminCards();
+</script>
+</body>
+</html>
