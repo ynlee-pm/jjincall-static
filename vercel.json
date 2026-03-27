@@ -11,6 +11,9 @@
     }
   ],
   "rewrites": [
-    { "source": "/(.*)", "destination": "/index.html" }
+    { "source": "/manager/:path*",  "destination": "/index.html" },
+    { "source": "/student/:path*",  "destination": "/index.html" },
+    { "source": "/admin",           "destination": "/index.html" },
+    { "source": "/admin/:path*",    "destination": "/index.html" }
   ]
 }

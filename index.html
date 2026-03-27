@@ -584,7 +584,7 @@ input:focus { border-color: var(--red); }
           데이터 업데이트
         </button>
         <div class="dropdown-divider"></div>
-        <button class="dropdown-item dropdown-item-muted" onclick="goTo('screen-login'); closeMenu()">
+        <button class="dropdown-item dropdown-item-muted" onclick="doLogout(); closeMenu()">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
             <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/>
             <polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
@@ -696,7 +696,7 @@ input:focus { border-color: var(--red); }
           데이터 업데이트
         </button>
         <div class="dropdown-divider"></div>
-        <button class="dropdown-item dropdown-item-muted" onclick="goTo('screen-login'); closeMenu()">
+        <button class="dropdown-item dropdown-item-muted" onclick="doLogout(); closeMenu()">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
             <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/>
             <polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
@@ -1651,6 +1651,7 @@ async function verifyManagerEmail(email) {
   try {
     // @teamsparta.co 도메인 → 어드민
     if (email.toLowerCase().endsWith('@teamsparta.co')) {
+      localStorage.setItem('jjincall_session', JSON.stringify({ role: 'admin', email }));
       goTo('screen-admin');
       if (_pendingPath && _pendingPath !== '/' && !_pendingPath.startsWith('/manager')) {
         setTimeout(() => navigatePath(_pendingPath), 100);
@@ -1677,6 +1678,7 @@ async function verifyManagerEmail(email) {
       showLoginError('접근 권한이 없습니다. 관리자에게 문의해 주세요.'); return;
     }
 
+    localStorage.setItem('jjincall_session', JSON.stringify({ role: 'manager', managerName: manager['매니저명'], email }));
     goTo('screen-manager', manager['매니저명']);
     if (_pendingPath && _pendingPath !== '/' && _pendingPath !== `/manager/${encodeURIComponent(manager['매니저명'])}`) {
       setTimeout(() => navigatePath(_pendingPath), 100);
@@ -1791,9 +1793,35 @@ async function fetchData() {
   }
 }
 
+function doLogout() {
+  localStorage.removeItem('jjincall_session');
+  currentManagerName = null;
+  goTo('screen-login');
+}
+
 /* 초기화 */
 renderCards(STUDENTS);
 renderAdminCards();
+
+/* 저장된 세션 복원 */
+(function restoreSession() {
+  try {
+    const raw = localStorage.getItem('jjincall_session');
+    if (!raw) return;
+    const sess = JSON.parse(raw);
+    if (sess.role === 'admin') {
+      goTo('screen-admin');
+      if (_pendingPath && _pendingPath !== '/') setTimeout(() => navigatePath(_pendingPath, true), 50);
+    } else if (sess.role === 'manager' && sess.managerName) {
+      goTo('screen-manager', sess.managerName);
+      if (_pendingPath && _pendingPath !== '/' && _pendingPath !== `/manager/${encodeURIComponent(sess.managerName)}`) {
+        setTimeout(() => navigatePath(_pendingPath, true), 50);
+      }
+    }
+  } catch (e) {
+    localStorage.removeItem('jjincall_session');
+  }
+})();
 
 /* Google Identity Services 초기화 — GIS 로드 타이밍에 무관하게 안전 처리 */
 function tryInitGoogleBtn() {
