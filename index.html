@@ -1098,9 +1098,9 @@ function closeSheet() {
 async function saveRecord() {
   const date = document.getElementById('input-date').value;
   const min  = document.getElementById('input-minutes').value;
-  if (!date) { alert('날짜를 선택해 주세요.'); return; }
-  if (!min || Number(min) <= 0) { alert('콜 분수를 입력해 주세요.'); return; }
-  if (editingId === null && !currentImageFile) { alert('캡처 화면을 첨부해 주세요.'); return; }
+  if (!date) { showToast('날짜를 선택해 주세요.'); return; }
+  if (!min || Number(min) <= 0) { showToast('콜 분수를 입력해 주세요.'); return; }
+  if (editingId === null && !currentImageFile) { showToast('캡처 화면을 첨부해 주세요.'); return; }
 
   const btn = document.getElementById('sheet-save-btn');
   const isEditing = editingId !== null;
@@ -1124,21 +1124,24 @@ async function saveRecord() {
       imagePath = path;
     }
 
-    const s = STUDENTS.find(x => x.id === currentStudentId);
-    const payload = {
-      student_user_id: currentStudentId,
-      student_name:    s.name,
-      manager_name:    currentManagerName,
-      call_date:       date,
-      call_minutes:    Number(min),
-      image_path:      imagePath,
-    };
-
     if (isEditing) {
-      const { error } = await sb.from('call_records').update(payload).eq('id', editingId);
+      // 수정: 변경되는 필드만 업데이트 (manager_name 등 불변 필드 제외)
+      const { error } = await sb.from('call_records').update({
+        call_date:    date,
+        call_minutes: Number(min),
+        image_path:   imagePath,
+      }).eq('id', editingId);
       if (error) throw error;
     } else {
-      const { error } = await sb.from('call_records').insert(payload);
+      const s = STUDENTS.find(x => x.id === currentStudentId);
+      const { error } = await sb.from('call_records').insert({
+        student_user_id: currentStudentId,
+        student_name:    s?.name ?? '',
+        manager_name:    currentManagerName ?? '',
+        call_date:       date,
+        call_minutes:    Number(min),
+        image_path:      imagePath,
+      });
       if (error) throw error;
     }
 
@@ -1147,9 +1150,10 @@ async function saveRecord() {
     renderCards(getManagerStudents());
     showToast('저장 완료!');
   } catch (e) {
+    console.error('[saveRecord]', e);
     btn.disabled = false;
     btn.textContent = isEditing ? '수정 완료' : '저장';
-    showToast('저장 실패: ' + e.message);
+    showToast('저장 실패: ' + (e.message || e));
   }
 }
 
