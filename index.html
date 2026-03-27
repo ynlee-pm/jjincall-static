@@ -605,6 +605,19 @@ input:focus { border-color: var(--red); }
     </div>
   </div>
 
+  <div id="manager-stats-card" style="margin:0 16px 10px; background:#fff; border:1px solid var(--border); border-radius:12px; padding:14px 16px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+      <span style="font-size:13px; font-weight:700; color:var(--text);">이번 달 내 콜 현황</span>
+      <span id="mgr-stats-month" style="font-size:12px; color:var(--text-sub);"></span>
+    </div>
+    <div style="display:grid; grid-template-columns:repeat(5,1fr); gap:4px; text-align:center;">
+      <div><div style="font-size:18px; font-weight:800; color:var(--text);" id="mgs-students">-</div><div style="font-size:11px; color:var(--text-sub); margin-top:2px;">배정 수강생</div></div>
+      <div><div style="font-size:18px; font-weight:800; color:var(--red);"   id="mgs-total">-</div><div style="font-size:11px; color:var(--text-sub); margin-top:2px;">전체 건수</div></div>
+      <div><div style="font-size:18px; font-weight:800; color:var(--text);"  id="mgs-phone">-</div><div style="font-size:11px; color:var(--text-sub); margin-top:2px;">📞 전화</div></div>
+      <div><div style="font-size:18px; font-weight:800; color:var(--text);"  id="mgs-remote">-</div><div style="font-size:11px; color:var(--text-sub); margin-top:2px;">🖥️ 원격</div></div>
+      <div><div style="font-size:18px; font-weight:800; color:var(--text);"  id="mgs-minutes">-</div><div style="font-size:11px; color:var(--text-sub); margin-top:2px;">총 분수</div></div>
+    </div>
+  </div>
   <div class="count-bar" id="count-bar">수강생 <strong>0</strong>명</div>
   <div class="card-list" id="card-list"></div>
 </div>
@@ -890,7 +903,7 @@ function goTo(id, managerName) {
     currentManagerName = managerName;
     document.getElementById('manager-name-label').textContent = managerName + ' 매니저';
   }
-  if (id === 'screen-manager') renderCards(getManagerStudents());
+  if (id === 'screen-manager') { renderCards(getManagerStudents()); renderManagerStats(); }
   if (id === 'screen-admin')   renderAdminCards();
 }
 
@@ -919,6 +932,35 @@ function closeMenu() {
 document.addEventListener('click', closeMenu);
 
 /* ════════════ 카드 렌더링 ════════════ */
+async function renderManagerStats() {
+  if (!currentManagerName) return;
+  const now   = new Date();
+  const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const [yr, mo] = month.split('-');
+  const lastDay   = new Date(Number(yr), Number(mo), 0).getDate();
+
+  document.getElementById('mgr-stats-month').textContent = `${now.getFullYear()}년 ${now.getMonth()+1}월`;
+  document.getElementById('mgs-students').textContent = getManagerStudents().length;
+
+  const { data } = await sb.from('call_records')
+    .select('call_minutes, call_type')
+    .eq('manager_name', currentManagerName)
+    .gte('call_date', `${month}-01`)
+    .lte('call_date', `${month}-${String(lastDay).padStart(2, '0')}`);
+
+  let total = 0, phone = 0, remote = 0, minutes = 0;
+  (data || []).forEach(r => {
+    total++;
+    minutes += r.call_minutes;
+    if (r.call_type === '원격상담') remote++; else phone++;
+  });
+
+  document.getElementById('mgs-total').textContent   = total;
+  document.getElementById('mgs-phone').textContent   = phone;
+  document.getElementById('mgs-remote').textContent  = remote;
+  document.getElementById('mgs-minutes').textContent = minutes;
+}
+
 function renderCards(list) {
   const countBar = document.getElementById('count-bar');
   if (countBar) countBar.innerHTML = `수강생 <strong>${list.length}</strong>명`;
@@ -1199,6 +1241,7 @@ async function saveRecord() {
     closeSheet();
     await renderRecords(currentStudentId);
     renderCards(getManagerStudents());
+    renderManagerStats();
     showToast('저장 완료!');
   } catch (e) {
     console.error('[saveRecord]', e);
