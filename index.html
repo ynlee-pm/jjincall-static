@@ -6,7 +6,7 @@
 <title>찐한 관리 콜 기록 시스템</title>
 <link rel="icon" href="[Symbol]Sparta.svg" type="image/svg+xml" />
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
-<script src="https://accounts.google.com/gsi/client" async defer onload="initGoogleBtn()"></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -1586,6 +1586,16 @@ async function fetchData() {
 /* 초기화 */
 renderCards(STUDENTS);
 renderAdminCards();
+
+/* Google Identity Services 초기화 — GIS 로드 타이밍에 무관하게 안전 처리 */
+function tryInitGoogleBtn() {
+  if (window.google && google.accounts) {
+    initGoogleBtn();
+  }
+}
+const _gsiScript = document.querySelector('script[src*="accounts.google.com"]');
+if (_gsiScript) _gsiScript.addEventListener('load', tryInitGoogleBtn);
+tryInitGoogleBtn();
 </script>
 </body>
 </html>
