@@ -1041,6 +1041,9 @@ async function renderRecords(id) {
 function openSheet(editIdx) {
   currentImageFile = null;
   document.getElementById('file-input').value = '';
+  const saveBtn = document.getElementById('sheet-save-btn');
+  saveBtn.disabled = false;
+  saveBtn.textContent = editIdx !== undefined ? '수정 완료' : '저장';
   const s = STUDENTS.find(x => x.id === currentStudentId);
   document.getElementById('sheet-student-tag').textContent = `${s.name} · ${s.phone}`;
 
