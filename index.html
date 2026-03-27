@@ -605,7 +605,7 @@ input:focus { border-color: var(--red); }
     </div>
   </div>
 
-  <div id="manager-stats-card" style="margin:0 16px 10px; background:#fff; border:1px solid var(--border); border-radius:12px; padding:14px 16px;">
+  <div id="manager-stats-card" style="margin:10px 16px 10px; background:#fff; border:1px solid var(--border); border-radius:12px; padding:14px 16px;">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
       <span style="font-size:13px; font-weight:700; color:var(--text);">이번 달 내 콜 현황</span>
       <span id="mgr-stats-month" style="font-size:12px; color:var(--text-sub);"></span>
@@ -1702,7 +1702,7 @@ async function fetchData() {
 
     // 현재 화면 리렌더
     const cur = document.querySelector('.screen.active');
-    if (cur?.id === 'screen-manager') renderCards(getManagerStudents());
+    if (cur?.id === 'screen-manager') { renderCards(getManagerStudents()); renderManagerStats(); }
     if (cur?.id === 'screen-admin')   renderAdminCards();
 
     showToast(`업데이트 완료 · 수강생 ${STUDENTS.length}명`);
