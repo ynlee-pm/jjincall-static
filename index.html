@@ -883,13 +883,64 @@ let editingId           = null;
 let pendingDelete       = null;
 let currentImageFile    = null;
 
+const _pendingPath = location.pathname; // 로그인 전 진입 URL 저장
+let _noPopState   = false;              // goBack 시 popstate 이중 처리 방지
+
+function pushPath(path) {
+  history.pushState({ path }, '', path);
+}
+
+function navigatePath(path, instant) {
+  if (!path || path === '/' || path === '/index.html') return;
+  const parts = path.split('/').filter(Boolean);
+  if (!parts.length) return;
+  const sec   = parts[0];
+  const param = parts[1] ? decodeURIComponent(parts[1]) : null;
+
+  if (instant) {
+    // 브라우저 back/forward — 애니메이션 없이 즉시 전환
+    document.querySelectorAll('.screen').forEach(s => {
+      s.classList.remove('active', 'behind');
+      s.style.transform = '';
+    });
+    if (sec === 'manager' && param) {
+      currentManagerName = param;
+      document.getElementById('manager-name-label').textContent = param + ' 매니저';
+      document.getElementById('screen-manager').classList.add('active');
+      renderCards(getManagerStudents()); renderManagerStats();
+    } else if (sec === 'student' && param) {
+      openDetail(Number(param), true);
+    } else if (sec === 'admin' && param) {
+      currentAdminManager = param;
+      document.getElementById('admin-detail-manager-name').textContent = param + ' 매니저 기록 상세';
+      document.getElementById('screen-admin-manager-detail').classList.add('active');
+      renderAdminManagerDetail();
+    } else if (sec === 'admin') {
+      document.getElementById('screen-admin').classList.add('active');
+      renderAdminCards();
+    }
+    return;
+  }
+
+  // 일반 전환 (애니메이션 포함)
+  if      (sec === 'manager' && param) goTo('screen-manager', param, true);
+  else if (sec === 'student' && param) openDetail(Number(param), true);
+  else if (sec === 'admin'   && param) openAdminManagerDetail(param, true);
+  else if (sec === 'admin')            goTo('screen-admin', null, true);
+}
+
+window.addEventListener('popstate', () => {
+  if (_noPopState) return;
+  navigatePath(location.pathname, true);
+});
+
 const sb = supabase.createClient(
   'https://kcjulzlkzkalfexhjyvc.supabase.co',
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtjanVsemxremthbGZleGhqeXZjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQzMTA2NDYsImV4cCI6MjA4OTg4NjY0Nn0.Yl3SdxvYKdEKmMRDfyKLTVpXwOsn5YBwh45Oma72Qsk'
 );
 
 /* ════════════ 화면 전환 ════════════ */
-function goTo(id, managerName) {
+function goTo(id, managerName, _skipHistory) {
   const cur = document.querySelector('.screen.active');
   if (cur && cur.id !== id) {
     cur.classList.remove('active');
@@ -905,6 +956,12 @@ function goTo(id, managerName) {
   }
   if (id === 'screen-manager') { renderCards(getManagerStudents()); renderManagerStats(); }
   if (id === 'screen-admin')   renderAdminCards();
+
+  if (!_skipHistory) {
+    if (id === 'screen-manager') pushPath(`/manager/${encodeURIComponent(currentManagerName || '')}`);
+    else if (id === 'screen-admin') pushPath('/admin');
+    else if (id === 'screen-login') pushPath('/');
+  }
 }
 
 function goBack(targetId) {
@@ -916,6 +973,10 @@ function goBack(targetId) {
   const prev = document.getElementById(targetId);
   prev.classList.remove('behind');
   prev.classList.add('active');
+  // URL을 부모 화면에 맞게 복원 (popstate 이중 실행 방지)
+  _noPopState = true;
+  history.back();
+  setTimeout(() => _noPopState = false, 300);
 }
 
 /* ════════════ 햄버거 메뉴 ════════════ */
@@ -1014,9 +1075,10 @@ function filterCards(q) {
 }
 
 /* ════════════ 학생 상세 ════════════ */
-function openDetail(id) {
+function openDetail(id, _skipHistory) {
   currentStudentId = id;
   const s = STUDENTS.find(x => x.id === id);
+  if (!s) return;
   document.getElementById('detail-header-name').textContent = s.name;
   document.getElementById('detail-phone').textContent  = s.phone;
   document.getElementById('detail-course').textContent = s.course;
@@ -1025,7 +1087,8 @@ function openDetail(id) {
   document.getElementById('backoffice-link').href =
     `https://academia.backoffice.spartaclub.kr/user/${id}/counseling`;
   renderRecords(id);
-  goTo('screen-detail');
+  if (!_skipHistory) pushPath(`/student/${id}`);
+  goTo('screen-detail', null, true);
 }
 
 function openDetailAndSheet(id) {
@@ -1388,14 +1451,14 @@ async function renderAdminCards() {
   }).join('');
 }
 
-function openAdminManagerDetail(managerName) {
+function openAdminManagerDetail(managerName, _skipHistory) {
   currentAdminManager = managerName;
   document.getElementById('admin-detail-manager-name').textContent = managerName + ' 매니저 기록 상세';
-  // 현재 어드민 메인의 월과 동기화
   const mainMonth = document.getElementById('settlement-month').value;
   document.getElementById('admin-detail-month').value = mainMonth;
   renderAdminManagerDetail();
-  goTo('screen-admin-manager-detail');
+  if (!_skipHistory) pushPath(`/admin/${encodeURIComponent(managerName)}`);
+  goTo('screen-admin-manager-detail', null, true);
 }
 
 async function renderAdminManagerDetail() {
@@ -1580,7 +1643,11 @@ async function verifyManagerEmail(email) {
   try {
     // @teamsparta.co 도메인 → 어드민
     if (email.toLowerCase().endsWith('@teamsparta.co')) {
-      goTo('screen-admin'); return;
+      goTo('screen-admin');
+      if (_pendingPath && _pendingPath !== '/' && !_pendingPath.startsWith('/manager')) {
+        setTimeout(() => navigatePath(_pendingPath), 100);
+      }
+      return;
     }
 
     const res = await fetch(MANAGERS_URL, { cache: 'no-store' });
@@ -1603,6 +1670,9 @@ async function verifyManagerEmail(email) {
     }
 
     goTo('screen-manager', manager['매니저명']);
+    if (_pendingPath && _pendingPath !== '/' && _pendingPath !== `/manager/${encodeURIComponent(manager['매니저명'])}`) {
+      setTimeout(() => navigatePath(_pendingPath), 100);
+    }
 
   } catch (e) {
     showLoginError('데이터를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.');
